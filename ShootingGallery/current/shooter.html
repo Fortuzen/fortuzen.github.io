@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+
+<script>
+
+var TIMESTEP = 1000/60;
+var ticks = 0;
+// Enemies 
+var things = [];
+var fireballs = [];
+var bloodSplats = [];
+
+// mouse
+var mousePosition = [0,0];
+var playerShot = false;
+// Cache
+var spriteCache = {};
+var imageCache = {};
+
+// Player stuff
+var playerHP = 100;
+var playerScore = 0;
+
+function main() {
+    let canvas = initCanvas("shooterCanvas", 300, 300);
+    let ctx = canvas.getContext("2d");
+
+    canvas.addEventListener("mousemove", e=>{
+        mousePosition = getCursorPosition(e);
+    });
+    canvas.addEventListener("mousedown", e=>{
+        handleMouseInput(e);
+    });
+
+    loadImageCache();
+    loadSpriteCache();
+    mainLoop(canvas);
+
+}
+
+// Initialize canvas with given width and height
+function initCanvas(canvasId, width, height) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext("2d");
+    ctx.canvas.width = width;
+    ctx.canvas.height = height;
+    return canvas;
+}
+
+function clearCanvas(canvas) {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+// Get mouse cursor position
+function getCursorPosition(event){
+    var canvas=event.target;
+    var rect = canvas.getBoundingClientRect();
+    var x=event.clientX - rect.left;
+    var y=event.clientY - rect.top;
+    return [x,y];
+}
+
+function mainLoop(canvas) {
+    let ctx = canvas.getContext("2d");
+
+    createEnemy()
+    createEnemy()  
+    let pos_x = 0
+
+    // Fire random fireballs
+    setInterval(()=>{       
+         // Random fireball
+        if(things.length > 0) {
+            let randomIndex = Math.round(Math.random()*(things.length-1));
+            let thing = things[randomIndex];
+            if(thing.hp > 0)
+                things[randomIndex].shootFireBall([0.5,2]);
+        }
+    }, 2000);
+
+
+
+
+
+    setInterval(()=>{
+
+
+        if(playerShot) {
+            //console.log("Player Shot");
+            // Check collision
+            for(let i=0;i<things.length;++i) {
+                let thing = things[i];
+                if(thing.hp <= 0) {
+                    continue;
+                }
+                let collider = thing.collider;
+                let collided = collider.checkPointCollision(mousePosition);
+                if(collided) {
+                    //console.log("Collision");
+                    let pixelCollision = thing.pixelPerfectCollision(mousePosition);
+                    if(pixelCollision) {
+                        //Create blood
+                        let blood = new Blood(mousePosition, spriteCache["blood"]);
+                        let bloodIndex = bloodSplats.push(blood);
+                        console.log(bloodIndex);
+                        setTimeout(()=>{ blood.alive = false; bloodSplats.splice(bloodIndex-1, 1);}, 300);
+
+                        if(thing.hp>0) {
+                            thing.hp -= 1;
+                            playerScore += 5
+                        } 
+                        if(thing.hp <= 0) {
+                            thing.sprite = cloneSprite("imp_death");
+                            setTimeout(()=>{things.splice(i,1); playerScore += 50;}, 500);
+                        }
+
+                        break;
+                    }                    
+                }
+            }
+            playerShot = false;
+        }
+
+
+
+
+        // fireball update
+        for(let i=0;i<fireballs.length;++i) {
+            fireballs[i].update();
+        }
+
+        // Render
+        clearCanvas(canvas);
+
+        ctx.drawImage(imageCache["background"],0,0);
+        spriteCache["pistol_idle"].drawSprite(canvas, [pos_x+75, Math.cos(ticks/16)*2+220] );
+        pos_x += Math.sin(ticks/64)*0.5;
+        //Draw enemies
+        for(let i=0;i<things.length;++i) {
+            things[i].draw(canvas);
+        }
+        // Draw blood
+        for(let i=0;i<bloodSplats.length;++i) {
+            bloodSplats[i].draw(canvas);
+        }
+
+        for(let i=0;i<fireballs.length;++i) {
+            fireballs[i].draw(canvas);
+        }
+
+        // score and hp
+        ctx.font = "24px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        ctx.fillText(playerHP, 20, 290);
+        ctx.fillText(playerScore, 270, 290);
+        //playerScore += 10;
+        
+        drawCrossHair(canvas, mousePosition, [4,4]);
+
+        ticks += 1;
+
+    }, TIMESTEP);
+
+}
+
+function drawCrossHair(canvas, position, size) {
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.fillStyle = "white"
+    ctx.rect(position[0]-size[0]/2, position[1]-size[1]/2, size[0], size[1]);
+    ctx.fillRect(position[0]-size[0]/2, position[1]-size[1]/2, size[0], size[1]);
+    //ctx.fillRect(position[0], position[1], 32,32);
+    ctx.stroke();
+}
+
+function createEnemy(x, y) {
+
+    // clone animated sprite
+    let sprite = cloneSprite("imp_idle");
+    //console.log(sprite);
+
+    let collider = new Collider(41,61,[0,0]);
+
+    let enemy = new Enemy(100, [Math.random()*200, 100], sprite, collider);
+
+    collider.parent = enemy;
+
+    things.push(enemy);
+}
+
+function loadImageCache() {
+    let bg = new Image();
+    bg.src = "bg.png";
+    imageCache["background"] = bg;
+
+    let blood = new Image();
+    blood.src = "blood.png";
+    imageCache["blood"] = blood;
+}
+
+function loadSpriteCache() {
+    let imp = new Image();
+    imp.src = "imp.png";
+    spriteCache["imp_idle"] = new AnimatedSprite(imp, 2, 41, 61, 60);
+
+    let imp_d = new Image();
+    imp_d.src = "imp_death.png";
+    spriteCache["imp_death"] = new AnimatedSprite(imp_d, 3, 41, 61, 10, false);
+
+    let imp_fire = new Image();
+    imp_fire.src = "imp_fire.png";
+    spriteCache["imp_fireball"] = new AnimatedSprite(imp_fire, 1, 15, 15, 1);
+
+
+    let pistol_img = new Image()
+    pistol_img.src = "pistol.png"
+    spriteCache["pistol_idle"] = new AnimatedSprite(pistol_img, 1, 74, 85, 1);
+
+    spriteCache["blood"] = new AnimatedSprite(imageCache["blood"], 1, 14, 14, 1);
+}
+
+function cloneSprite(name) {
+    return Object.assign(Object.create( Object.getPrototypeOf(spriteCache[name])),spriteCache[name]);
+}
+
+function handleMouseInput(event) {
+    playerShot = true;
+}
+
+// Classes below
+class AnimatedSprite {
+    constructor(imgSheet, frameCount, frameWidth, frameHeight, frameRate, repeat=true) {
+        this.img = imgSheet;
+        this.frameCount = frameCount;
+        this.frameWidth = frameWidth;
+        this.frameHeight = frameHeight;
+        this.frameRate = frameRate;
+
+        this.repeat = repeat
+
+        this.currentFrame = 0; 
+        this.nextFrameTick = ticks + frameRate;
+  
+    }
+
+    drawSprite(canvas, position, scale=1) {
+        let ctx = canvas.getContext("2d");
+
+        let sx = this.frameWidth * this.currentFrame;
+        let sy = 0;
+
+        ctx.drawImage(this.img, sx, sy, this.frameWidth, this.frameHeight,
+        position[0], position[1], this.frameWidth*scale, this.frameHeight*scale);
+        
+        if(ticks >= this.nextFrameTick && (this.repeat || this.currentFrame < this.frameCount-1) ) {
+            this.currentFrame = (this.currentFrame + 1) % this.frameCount;
+            this.nextFrameTick = ticks + this.frameRate;
+        }        
+    }
+
+    resetAnimation() {
+        this.currentFrame = 0;
+        this.nextFrameTick = ticks + frameRate;
+    }
+}
+
+class Enemy {
+    constructor(hp, position, sprite, collider) {
+        if(!Enemy.count) {
+            Enemy.count = 1;
+        } else {
+            Enemy.count += 1;
+        }
+        
+        this.id = Enemy.count
+        this.hp = 5;
+        this.position = position;
+        this.sprite = sprite;
+        this.collider = collider;
+    }
+
+    shootFireBall(velocity) {
+        let pos = [this.position[0]+20, this.position[1] + 30];
+        let ball = new FireBall(pos, velocity, spriteCache["imp_fireball"]);
+        fireballs.push(ball);
+    }
+
+    pixelPerfectCollision(mousePosition) {
+        // hack maybe
+        let tempCanvas = document.createElement("canvas");
+        let tempctx = tempCanvas.getContext("2d");
+        this.sprite.drawSprite(tempCanvas,[0,0]);
+        let color = tempctx.getImageData(mousePosition[0]-this.position[0], mousePosition[1]-this.position[1], 1, 1).data;
+        
+        //console.log(color[3]);
+        // Check alpha channel
+        if(color[3] != 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    draw(canvas) {
+        this.sprite.drawSprite(canvas, this.position);
+    }
+
+}
+
+// Collider should never be alone, needs a parent
+class Collider {
+    constructor(width, height, offset=[0,0], parent) {
+        this.offset = offset;
+        this.width = width;
+        this.height = height;
+        this.parent = parent;
+    }
+
+    checkPointCollision(point) {
+        // x axis
+        let x_max = this.parent.position[0] + this.width;
+        let x_min = this.parent.position[0];
+        if( point[0] > x_max || point[0] < x_min) {
+            return false;
+        }
+        // y axis
+        let y_max = this.parent.position[1] + this.height;
+        let y_min = this.parent.position[1];
+        if( point[1] > y_max || point[1] < y_min) {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+class FireBall {
+    constructor(position, velocity, sprite) {
+        this.position = [];
+        this.position[0] = position[0];
+        this.position[1] = position[1];
+        this.velocity = velocity;
+        this.sprite = sprite;
+        this.alive = true;
+    }
+
+    update() {
+        this.position[0] += this.velocity[0];
+        this.position[1] += this.velocity[1];
+        if(this.position[1] > 300 && this.alive) {
+            playerHP -= 10;
+            this.alive = false;
+        }
+    }
+
+    draw(canvas) {
+        let scale = Math.pow(this.position[1] / 150, 4);
+        this.sprite.drawSprite(canvas, this.position, scale);
+    }
+}
+
+class Blood {
+    constructor(position, sprite) {
+        this.position = [];
+        this.position[0] = position[0] - 7;
+        this.position[1] = position[1] - 7;
+        this.sprite = sprite;
+        this.alive = true;
+    }
+
+    update() {
+
+    }
+
+    draw(canvas) {
+        if(this.alive) {
+            this.sprite.drawSprite(canvas, this.position);
+        }
+    }
+}
+
+class ResourceCache {
+    static init() {
+
+    }
+}
+
+
+
+</script>
+</head>
+<body onload="main()">
+    <canvas id="shooterCanvas" style="border: solid gold; cursor:none;"></canvas>
+</body>
+</html>

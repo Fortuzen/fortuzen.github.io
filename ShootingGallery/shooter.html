@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>DoomerShooter</title>
+
+    <style>
+            html{
+                font-family: "Comic Sans MS";
+                text-align: center;
+            }
+
+            canvas {
+                width: 600px;
+                height: 600px;
+                cursor:none;
+            }
+
+            body{
+                background:rgb(118, 120, 121);
+            }
+        </style>
+
+<script>
+
+// Antti Neuvonen, 252581
+// VWD project 4
+// Instead of gifs, I use png spritesheets
+// alternative link
+// http://cs.uef.fi/~anttine/shooter/shooter.html
+
+var TIMESTEP = 1000/60;
+var ticks = 0;
+
+// Enemy stuff
+var MAX_ENEMY_COUNT = 10;
+var things = []; // These are enemies
+var fireballs = [];
+var bloodSplats = [];
+
+// mouse
+var mousePosition = [0,0];
+var playerShot = false;
+// Cache
+var spriteCache = {};
+var imageCache = {};
+var audioCache = {};
+
+// Player stuff
+var playerHP = 100;
+var playerScore = 0;
+let playerHand = null;
+let playerHandPosX = 0;
+
+// canvas settings/INTERNAL RESOLUTION, do not change
+var canvasWidth = 300;
+var canvasHeight = 300;
+
+function main() {
+    let canvas = initCanvas("shooterCanvas", canvasWidth, canvasHeight);
+    let ctx = canvas.getContext("2d");
+
+
+    canvas.addEventListener("mousemove", e=>{
+        mousePosition = getCursorPosition(e);
+    });
+    canvas.addEventListener("mousedown", e=>{
+        handleMouseInput(e);
+    });
+
+    loadAudioCache();
+    loadImageCache();
+    loadSpriteCache();
+    mainLoop(canvas);
+
+}
+
+// Initialize canvas with given width and height
+function initCanvas(canvasId, width, height) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext("2d");
+    ctx.canvas.width = width;
+    ctx.canvas.height = height;
+    return canvas;
+}
+
+function clearCanvas(canvas) {
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+// Get mouse cursor position
+// MODIFIED: because we upscale canvas but keep the resolution same
+// we need to include scaling factor
+function getCursorPosition(event){
+    var canvas=event.target;
+    var rect = canvas.getBoundingClientRect();
+    var x= (event.clientX - rect.left)/2; // <--- !!Scaling factor
+    var y= (event.clientY - rect.top)/2;
+    console.log(rect.left);
+    return [x,y];
+}
+
+// Game start from here
+function mainLoop(canvas) {
+    let ctx = canvas.getContext("2d");
+
+    newGame();
+
+    // Fire random fireballs
+    setInterval(()=>{       
+         // Random fireball
+        if(things.length > 0) {
+            let randomIndex = Math.round(Math.random()*(things.length-1));
+            let thing = things[randomIndex];
+            if(thing.hp > 0)
+                things[randomIndex].shootFireBall();
+        }
+    }, 2000);
+
+    // Enemy spawns after certain amount of time
+    setInterval(()=>{
+        if(Enemy.count < MAX_ENEMY_COUNT)
+            createEnemy();
+    }, 1100); 
+
+    // Main loop starts
+    setInterval(()=>{
+
+        if(playerShot && playerHP > 0) {
+            // Play pistol audio
+            if(!audioCache["pistol_fire"].ended) {
+                audioCache["pistol_fire"].currentTime = 0;
+            }
+            playerHand = spriteCache["pistol_fire"];
+            setTimeout(()=>{playerHand = spriteCache["pistol_idle"];},100);
+            audioCache["pistol_fire"].play();
+
+            // Check collision and handle it
+            handleCollision();
+
+            playerShot = false;
+        }
+
+        // fireball update
+        for(let i=0;i<fireballs.length;++i) {
+            fireballs[i].update();
+        }
+
+        // Render
+        //
+        //clearCanvas(canvas);
+
+        // Background Image
+        ctx.drawImage(imageCache["background"],0,0);
+             
+        //Draw enemies
+        for(let i=0;i<things.length;++i) {
+            things[i].draw(canvas);
+        }
+        // Draw blood
+        for(let i=0;i<bloodSplats.length;++i) {
+            bloodSplats[i].draw(canvas);
+        }
+        // Draw fireballs
+        for(let i=0;i<fireballs.length;++i) {
+            fireballs[i].draw(canvas);
+        }
+       
+        if(playerHP > 0) {
+            playerHandPosX += Math.sin(ticks/64)*0.5;
+            playerHand.drawSprite(canvas, [playerHandPosX+75, Math.cos(ticks/16)*2+220] );
+        } else {
+            drawDeath(canvas);
+        }
+
+        drawHUD(canvas);
+        drawCrossHair(canvas, mousePosition, [4,4]);
+
+        ticks += 1;
+
+    }, TIMESTEP);
+
+}
+
+function drawCrossHair(canvas, position, size) {
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.fillStyle = "white"
+    ctx.rect(position[0]-size[0]/2, position[1]-size[1]/2, size[0], size[1]);
+    ctx.fillRect(position[0]-size[0]/2, position[1]-size[1]/2, size[0], size[1]);
+    ctx.stroke();
+}
+
+// score and hp
+function drawHUD(canvas) {
+    const ctx = canvas.getContext("2d");
+    ctx.font = "24px Arial";
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.fillText(playerHP, 20, 290);
+    ctx.fillText(playerScore, 270, 290);
+}
+
+// When player dies, draw red screen and text
+function drawDeath(canvas) {
+    const ctx = canvas.getContext("2d");
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(255,0,0,0.5)"
+    ctx.fillRect(0,0, canvasWidth, canvasHeight);
+    ctx.stroke();
+
+    ctx.font = "24px Arial";
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.fillText("You DIED!", 150, 150);
+}
+
+// Create enemy at random location, if possible
+function createEnemy() {
+
+    // clone animated sprite
+    let sprite = cloneSprite("imp_idle");
+    let collider = new Collider(41,61,[0,0]);
+
+    // random position but not too close other enemies
+    let minDistance = 41;
+    let posOk = false;
+    let pos_x;
+    let pos_y = (Math.random())*100+50;
+    //console.log(pos_y);
+    let safeCounter = 0;
+    while(!posOk) {
+        pos_x = (Math.random()*(canvasWidth-41-41))+41;
+        if(things.length === 0) {
+            posOk = true;
+        }
+
+        for(let i = 0; i<things.length;++i) {
+            let thing = things[i];
+            if( Math.abs(thing.position[0] - pos_x) < minDistance) {
+                posOk = false;
+                break;
+            }
+            posOk = true;
+        }
+        safeCounter++;
+        if(safeCounter > 500) {
+            //console.log("No room for enemy");
+            break;
+        }      
+    }
+    if(posOk) {
+        let enemy = new Enemy(5, [pos_x, pos_y], sprite, collider);
+        collider.parent = enemy;
+        things.push(enemy);
+    }
+
+}
+
+// Check collision and handle it accordingly
+function handleCollision() {
+    for(let i=0;i<things.length;++i) {
+        let thing = things[i];
+        if(thing.hp <= 0) {
+            continue;
+        }
+        let collider = thing.collider;
+        let collided = collider.checkPointCollision(mousePosition);
+        if(collided) {
+            let pixelCollision = thing.pixelPerfectCollision(mousePosition);
+            if(pixelCollision) {
+                //Create blood
+                let blood = new Blood(mousePosition, spriteCache["blood"]);
+                let bloodIndex = bloodSplats.push(blood);
+                setTimeout(()=>{ blood.alive = false; bloodSplats.splice(bloodIndex-1, 1);}, 300);
+                
+                if(thing.hp>0) {
+                    thing.hp -= 1;
+                    playerScore += 2
+                } 
+                if(thing.hp <= 0) {
+                    thing.sprite = cloneSprite("imp_death");
+                    Enemy.count -= 1;
+                    setTimeout(()=>{things.splice(i,1); playerScore += 10;}, 500);
+                }
+                break; // Break the loop because we found perfect collision
+            }                    
+        }
+    }
+}
+
+// This clones an object
+function cloneSprite(name) {
+    return Object.assign(Object.create( Object.getPrototypeOf(spriteCache[name])),spriteCache[name]);
+}
+
+// Used for shooting
+function handleMouseInput(event) {
+    playerShot = true;
+}
+
+// Reset variables
+function newGame() {
+    playerHP = 100;
+    playerScore = 0;
+    playerShot = false;
+    playerHand = spriteCache["pistol_idle"];
+    playerHandPosX = 0;
+
+    Enemy.count = 0;
+
+    things = [];
+    fireballs = [];
+    bloodSplats = [];
+
+    ticks = 0;
+
+}
+
+// Classes below
+
+// Animation class
+class AnimatedSprite {
+    constructor(imgSheet, frameCount, frameWidth, frameHeight, frameRate, repeat=true) {
+        this.img = imgSheet;
+        this.frameCount = frameCount;
+        this.frameWidth = frameWidth;
+        this.frameHeight = frameHeight;
+        this.frameRate = frameRate;
+
+        this.repeat = repeat
+
+        this.currentFrame = 0; 
+        this.nextFrameTick = ticks + frameRate;
+  
+    }
+
+    drawSprite(canvas, position, scale=1) {
+        let ctx = canvas.getContext("2d");
+
+        let sx = this.frameWidth * this.currentFrame;
+        let sy = 0;
+
+        ctx.drawImage(this.img, sx, sy, this.frameWidth, this.frameHeight,
+        position[0], position[1], this.frameWidth*scale, this.frameHeight*scale);
+        
+        if(ticks >= this.nextFrameTick && (this.repeat || this.currentFrame < this.frameCount-1) ) {
+            this.currentFrame = (this.currentFrame + 1) % this.frameCount;
+            this.nextFrameTick = ticks + this.frameRate;
+        }        
+    }
+
+    resetAnimation() {
+        this.currentFrame = 0;
+        this.nextFrameTick = ticks + frameRate;
+    }
+}
+
+// Enemy/demon class
+class Enemy {
+    constructor(hp, position, sprite, collider) {
+        if(!Enemy.count) {
+            Enemy.count = 1;
+        } else {
+            Enemy.count += 1;
+        }
+        
+        this.id = Enemy.count
+        this.hp = hp;
+        this.position = position;
+        this.sprite = sprite;
+        this.collider = collider;
+    }
+
+    shootFireBall() {
+        let from = [this.position[0]+20, this.position[1] + 30];
+        let target = [canvasWidth/2 - from[0], canvasHeight - from[1]];
+        let mag = Math.sqrt(target[0]*target[0] + target[1]*target[1]);
+        let velocity = [target[0]/mag * 2, target[1]/mag * 2];
+
+        let ball = new FireBall(from, velocity, spriteCache["imp_fireball"]);
+        fireballs.push(ball);
+    }
+
+    pixelPerfectCollision(mousePosition) {
+        let tempCanvas = document.createElement("canvas");
+        let tempctx = tempCanvas.getContext("2d");
+        this.sprite.drawSprite(tempCanvas,[0,0]);
+        let color = tempctx.getImageData(mousePosition[0]-this.position[0], mousePosition[1]-this.position[1], 1, 1).data;
+
+        // Check alpha channel
+        if(color[3] != 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    draw(canvas) {
+        this.sprite.drawSprite(canvas, this.position);
+    }
+
+}
+
+// Collider should never be alone, needs a parent
+class Collider {
+    constructor(width, height, offset=[0,0], parent) {
+        this.offset = offset;
+        this.width = width;
+        this.height = height;
+        this.parent = parent;
+    }
+
+    checkPointCollision(point) {
+        // x axis
+        let x_max = this.parent.position[0] + this.width;
+        let x_min = this.parent.position[0];
+        if( point[0] > x_max || point[0] < x_min) {
+            return false;
+        }
+        // y axis
+        let y_max = this.parent.position[1] + this.height;
+        let y_min = this.parent.position[1];
+        if( point[1] > y_max || point[1] < y_min) {
+            return false;
+        }
+
+        return true;
+    }
+}
+
+// Fireballs that hurt player and are shot by demons
+class FireBall {
+    constructor(position, velocity, sprite) {
+        this.position = [];
+        this.position[0] = position[0];
+        this.position[1] = position[1];
+        this.velocity = velocity;
+        this.sprite = sprite;
+        this.alive = true;
+    }
+
+    update() {
+        this.position[0] += this.velocity[0];
+        this.position[1] += this.velocity[1];
+        if(this.position[1] > 300 && this.alive && playerHP > 0) {
+            playerHP -= 10;
+            this.alive = false;
+        }
+    }
+
+    draw(canvas) {
+        let scale = Math.pow(this.position[1] / 150, 4);
+        this.sprite.drawSprite(canvas, this.position, scale);
+    }
+}
+
+class Blood {
+    constructor(position, sprite) {
+        this.position = [];
+        this.position[0] = position[0] - 7;
+        this.position[1] = position[1] - 7;
+        this.sprite = sprite;
+        this.alive = true;
+    }
+
+    update() {
+
+    }
+
+    draw(canvas) {
+        if(this.alive) {
+            this.sprite.drawSprite(canvas, this.position);
+        }
+    }
+}
+
+// Data loading functions below
+// Works fine now, finish later
+// Config file would be nice
+
+function loadAudioCache() {
+    let pistol_fire = new Audio();
+    pistol_fire.src = "pistol.wav";
+    //pistol_fire.volume = 0.5;
+    audioCache["pistol_fire"] = pistol_fire;
+}
+
+function loadImageCache() {
+    let bg = new Image();
+    bg.src = "bg.png";
+    imageCache["background"] = bg;
+
+    let blood = new Image();
+    blood.src = "blood.png";
+    imageCache["blood"] = blood;
+}
+
+//TODO: move images to imageCache
+function loadSpriteCache() {
+    let imp = new Image(); // Fun note: actually not imp
+    imp.src = "imp.png";
+    spriteCache["imp_idle"] = new AnimatedSprite(imp, 2, 41, 61, 60);
+
+    let imp_d = new Image();
+    imp_d.src = "imp_death.png";
+    spriteCache["imp_death"] = new AnimatedSprite(imp_d, 3, 41, 61, 10, false);
+
+    let imp_fire = new Image();
+    imp_fire.src = "imp_fire.png";
+    spriteCache["imp_fireball"] = new AnimatedSprite(imp_fire, 1, 15, 15, 1);
+
+
+    let pistol_img = new Image()
+    pistol_img.src = "pistol.png"
+    spriteCache["pistol_idle"] = new AnimatedSprite(pistol_img, 1, 74, 85, 1);
+
+    let pistol_fire = new Image();
+    pistol_fire.src = "pistol_fire.png"
+    spriteCache["pistol_fire"] = new AnimatedSprite(pistol_fire, 1, 74, 85, 1);
+
+    spriteCache["blood"] = new AnimatedSprite(imageCache["blood"], 1, 14, 14, 1);
+}
+
+
+
+</script>
+</head>
+<body onload="main()">
+    <h1>DoomerShooter</h1>
+    <canvas id="shooterCanvas" style="border: solid gold; "></canvas>
+    <br>
+    <button onclick="newGame()">New Game</button>
+    <br>
+    Use left mouse to shoot these damn demons<br>
+    HP on the left and score on the right<br>
+    Assets from <a href="https://github.com/freedoom/freedoom/tree/master/">FreeDoom project</a>
+</body>
+</html>
