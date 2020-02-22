@@ -1,0 +1,17 @@
+[
+    {
+        "question": "What time is it?",
+        "answers": ["Early", "Too late", "OK But Lorem mdmdmdmdmdmdmdmdmdmdm"],    
+        "correctIndex": 1
+    },
+    {
+        "question": "What is good?",
+        "answers": ["Pizza", "Bread", "Coke"],    
+        "correctIndex": 0
+    },
+    {
+        "question": "Nice to see you tooo Hello?",
+        "answers": ["ASd", "DDDDDDD", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"],    
+        "correctIndex": 2
+    }   
+]

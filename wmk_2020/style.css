@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css?family=Roboto&display=swap');
+
+p {
+    text-align: justify;
+    margin-left: 1em;
+	margin-right: 1em;
+	line-height: 1.4;
+	font-size: large;
+	font-family: 'Roboto';
+}
+
+h2 {
+	margin-top: 0.5em;
+	margin-bottom: 0.5em;
+}
+
+h4 {
+	margin-left: 1.0em;
+}
+
+h6 {
+	margin-left: 4.0em;
+}
+
+.full-width {
+	left: 50%;
+	margin-left: -50vw;
+	margin-right: -50vw;
+	max-width: 100vw;
+	position: relative;
+	right: 50%;
+	width: 100vw;
+}
+
+.quiz-body {
+    height: 15em;
+}
+
+.quiz-header {
+    height: 15vh;
+}
+
+.table-content {
+	max-height: 20em;
+	max-width: 30em;
+	overflow: auto;
+}
+
+.grammar-tables-container table {
+	max-width: 50em;
+}

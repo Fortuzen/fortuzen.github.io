@@ -1,0 +1,17 @@
+[
+    {
+        "question": "How many letters there are in the Finnish alphabet?",
+        "answers": ["29", "24", "26"],
+        "correctIndex": 0
+    },
+    {
+        "question": "What is good?",
+        "answers": ["Pizza", "Bread", "Coke"],    
+        "correctIndex": 0
+    },
+    {
+        "question": "Nice to see you tooo Hello?",
+        "answers": ["ASd", "DDDDDDD", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"],    
+        "correctIndex": 2
+    }   
+]
